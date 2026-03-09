@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WA Reaction App</title>
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  min-height: 100vh;
+  padding: 20px 16px 60px;
+}
+.container { max-width: 480px; margin: 0 auto; }
+h1 {
+  text-align: center;
+  color: #25D366;
+  margin-bottom: 6px;
+  font-size: 26px;
+  letter-spacing: -0.5px;
+}
+.subtitle {
+  text-align: center;
+  color: #8b949e;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #8b949e;
+  margin-bottom: 12px;
+}
+/* Status Bar */
+.status-bar {
+  text-align: center;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 14px;
+  transition: all 0.3s;
+}
+.s-disconnected { background: #2a1515; color: #f87171; border: 1px solid #7f1d1d; }
+.s-qr { background: #172033; color: #60a5fa; border: 1px solid #1d4ed8; }
+.s-authenticated { background: #172033; color: #a78bfa; border: 1px solid #6d28d9; }
+.s-ready { background: #0f2d1a; color: #4ade80; border: 1px solid #166534; }
+/* QR */
+#qr-wrap { text-align: center; padding: 8px 0; }
+#qr-img {
+  width: 200px; height: 200px;
+  border-radius: 12px;
+  border: 3px solid #25D366;
+  margin: 10px auto;
+  display: block;
+}
+.qr-hint { color: #8b949e; font-size: 13px; line-height: 1.6; }
+/* Chat list */
+#chat-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+#chat-list::-webkit-scrollbar { width: 4px; }
+#chat-list::-webkit-scrollbar-track { background: transparent; }
+#chat-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+.chat-item {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chat-item:hover { border-color: #25D366; background: #0a1a10; }
+.chat-item.selected { border-color: #25D366; background: #0a1a10; }
+.chat-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.chat-last { color: #6e7681; font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 700;
+}
+.b-group { background: #172033; color: #60a5fa; }
+.b-channel { background: #1e1033; color: #c084fc; }
+/* Emoji grid */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.emoji-btn {
+  background: #0d1117;
+  border: 1.5px solid #30363d;
+  border-radius: 10px;
+  font-size: 22px;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  line-height: 1;
+}
+.emoji-btn:hover { border-color: #25D366; transform: scale(1.12); }
+.emoji-btn.selected { border-color: #25D366; background: #0a1a10; box-shadow: 0 0 8px #25D36644; }
+/* Count input */
+.count-wrap { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.count-wrap label { color: #8b949e; font-size: 13px; white-space: nowrap; }
+.count-input {
+  flex: 1;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  color: #e6edf3;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 12px;
+  outline: none;
+}
+.count-input:focus { border-color: #25D366; }
+/* Summary */
+.summary {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+.summary span { color: #25D366; font-weight: 700; }
+/* Progress */
+#progress-wrap { display: none; margin-top: 12px; }
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 6px;
+}
+.progress-bar-bg {
+  background: #0d1117;
+  border-radius: 99px;
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid #30363d;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #25D366, #128C7E);
+  border-radius: 99px;
+  transition: width 0.3s;
+  width: 0%;
+}
+/* Buttons */
+.btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+.btn-green { background: linear-gradient(135deg, #25D366, #128C7E); color: #fff; }
+.btn-green:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.btn-red { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+.btn-red:hover:not(:disabled) { background: #991b1b; }
+.btn-outline { background: transparent; color: #8b949e; border: 1px solid #30363d; }
+.btn-outline:hover:not(:disabled) { border-color: #8b949e; color: #e6edf3; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+/* Alert */
+.alert {
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  display: none;
+  line-height: 1.5;
+}
+.a-success { background: #0f2d1a; border: 1px solid #166534; color: #4ade80; }
+.a-error { background: #2a1515; border: 1px solid #7f1d1d; color: #f87171; }
+.a-info { background: #172033; border: 1px solid #1d4ed8; color: #93c5fd; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🟢 WA Reaction App</h1>
+  <p class="subtitle">Kirim reaction otomatis ke pesan terakhir saluran</p>
+
+  <!-- Status -->
+  <div id="status-bar" class="status-bar s-disconnected">⏳ Menghubungkan ke WhatsApp...</div>
+
+  <!-- QR Section -->
+  <div class="card" id="qr-section" style="display:none;">
+    <div class="card-title">📱 Scan QR Code</div>
+    <div id="qr-wrap">
+      <img id="qr-img" src="" alt="QR Code loading..."/>
+      <p class="qr-hint">
+        Buka <b>WhatsApp</b> di HP kamu<br/>
+        Ketuk <b>⋮ Menu → Perangkat Tertaut</b><br/>
+        Lalu ketuk <b>Tautkan Perangkat</b> dan scan QR ini
+      </p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="main-app" style="display:none;">
+
+    <!-- Pilih Chat -->
+    <div class="card">
+      <div class="card-title">💬 Pilih Chat / Saluran</div>
+      <button class="btn btn-outline" id="load-btn" onclick="loadChats()">🔄 Tampilkan Daftar Chat</button>
+      <div id="chat-list"></div>
+    </div>
+
+    <!-- Pilih Emoji -->
+    <div class="card">
+      <div class="card-title">😀 Pilih Emoji Reaction</div>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+
+    <!-- Jumlah Reaction -->
+    <div class="card">
+      <div class="card-title">🔢 Jumlah Reaction</div>
+      <div class="count-wrap">
+        <label>Jumlah:</label>
+        <input class="count-input" type="number" id="count-input" value="300" min="1" max="1000"/>
+      </div>
+    </div>
+
+    <!-- Ringkasan + Kirim -->
+    <div class="card">
+      <div class="card-title">⚡ Kirim Reaction</div>
+      <div class="summary">
+        Chat: <span id="sum-chat">Belum dipilih</span><br/>
+        Emoji: <span id="sum-emoji">-</span><br/>
+        Jumlah: <span id="sum-count">300</span> reaction
+      </div>
+
+      <!-- Progress -->
+      <div id="progress-wrap">
+        <div class="progress-label">
+          <span id="prog-text">Mengirim...</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="prog-fill"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-green" id="send-btn" onclick="sendReaction()" disabled>
+        ⚡ Kirim Reaction Sekarang
+      </button>
+      <button class="btn btn-red" id="stop-btn" onclick="stopReaction()" style="display:none;">
+        ⛔ Stop Pengiriman
+      </button>
+      <div id="alert-box" class="alert"></div>
+    </div>
+
+    <!-- Logout -->
+    <div class="card">
+      <button class="btn btn-outline" onclick="logout()">🚪 Logout WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+
+const EMOJIS = [
+  '❤️','👍','😂','😮','😢','🙏',
+  '🔥','👏','🎉','💯','😍','😎',
+  '🤔','😅','👌','✅','🥰','😭',
+  '💪','🙌','⭐','🤩','😱','🫡'
+];
+
+let selectedChatId = null;
+let selectedChatName = null;
+let selectedEmoji = null;
+let isSending = false;
+
+// Render emoji
+const grid = document.getElementById('emoji-grid');
+EMOJIS.forEach(em => {
+  const btn = document.createElement('button');
+  btn.className = 'emoji-btn';
+  btn.textContent = em;
+  btn.title = em;
+  btn.onclick = () => pickEmoji(em, btn);
+  grid.appendChild(btn);
+});
+
+// Update jumlah di summary saat input berubah
+document.getElementById('count-input').addEventListener('input', function() {
+  document.getElementById('sum-count').textContent = this.value || '300';
+});
+
+function pickEmoji(em, btn) {
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedEmoji = em;
+  document.getElementById('sum-emoji').textContent = em + ' ' + em;
+  checkReady();
+}
+
+function pickChat(id, name, el) {
+  document.querySelectorAll('.chat-item').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedChatId = id;
+  selectedChatName = name;
+  document.getElementById('sum-chat').textContent = name;
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('send-btn').disabled = !(selectedChatId && selectedEmoji && !isSending);
+}
+
+// ─── Socket Events ─────────────────────────────────────────────────────────
+socket.on('status', (status) => {
+  const bar = document.getElementById('status-bar');
+  const qr = document.getElementById('qr-section');
+  const main = document.getElementById('main-app');
+  const map = {
+    disconnected: ['s-disconnected', '⏳ Menghubungkan ke WhatsApp...'],
+    qr:           ['s-qr',           '📱 Scan QR Code untuk masuk'],
+    authenticated:['s-authenticated','🔐 Memuat WhatsApp...'],
+    ready:        ['s-ready',        '✅ WhatsApp Terhubung!'],
+    auth_failure: ['s-disconnected', '❌ Login gagal, refresh halaman']
+  };
+  const [cls, txt] = map[status] || map.disconnected;
+  bar.className = 'status-bar ' + cls;
+  bar.textContent = txt;
+  qr.style.display   = status === 'qr' ? 'block' : 'none';
+  main.style.display = status === 'ready' ? 'block' : 'none';
+});
+
+socket.on('qr', (data) => {
+  document.getElementById('qr-img').src = data;
+});
+
+socket.on('reaction_start', ({ total, emoji }) => {
+  isSending = true;
+  showProgress(true);
+  document.getElementById('send-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'block';
+  showAlert(`🚀 Mulai mengirim ${total} reaction ${emoji}...`, 'info');
+});
+
+socket.on('reaction_progress', ({ current, total, percent, emoji }) => {
+  document.getElementById('prog-fill').style.width = percent + '%';
+  document.getElementById('prog-pct').textContent = percent + '%';
+  document.getElementById('prog-text').textContent = `${emoji} ${current} / ${total} terkirim`;
+});
+
+socket.on('reaction_done', ({ sent, emoji, note }) => {
+  isSending = false;
+  showProgress(false);
+  document.getElementById('send-btn').style.display = 'block';
+  document.getElementById('stop-btn').style.display = 'none';
+  document.getElementById('prog-fill').style.width = '100%';
+  document.getElementById('prog-pct').textContent = '100%';
+  showAlert(`✅ Selesai! ${sent} reaction ${emoji} berhasil dikirim${note ? ' (' + note + ')' : ''}`, 'success');
+  checkReady();
+});
+
+socket.on('reaction_stopped', ({ sent }) => {
+  isSending = false;
+  showProgress(false);
+  document.getElementById('send-btn').style.display = 'block';
+  document.getElementById('stop-btn').style.display = 'none';
+  showAlert(`⛔ Dihentikan. ${sent || 0} reaction sudah terkirim.`, 'info');
+  checkReady();
+});
+
+socket.on('reaction_error', ({ message, sent }) => {
+  isSending = false;
+  showProgress(false);
+  document.getElementById('send-btn').style.display = 'block';
+  document.getElementById('stop-btn').style.display = 'none';
+  showAlert(`❌ Error: ${message}. Terkirim: ${sent || 0}`, 'error');
+  checkReady();
+});
+
+// ─── Functions ──────────────────────────────────────────────────────────────
+async function loadChats() {
+  const btn = document.getElementById('load-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Memuat...';
+  try {
+    const res = await fetch('/api/chats');
+    const data = await res.json();
+    if (data.error) { showAlert('❌ ' + data.error, 'error'); return; }
+    const list = document.getElementById('chat-list');
+    list.innerHTML = '';
+    if (!data.length) {
+      list.innerHTML = '<p style="color:#6e7681;text-align:center;padding:12px;">Tidak ada chat ditemukan</p>';
+      return;
+    }
+    data.forEach(chat => {
+      const div = document.createElement('div');
+      div.className = 'chat-item';
+      let badge = '';
+      if (chat.isChannel) badge = '<span class="badge b-channel">Saluran</span>';
+      else if (chat.isGroup) badge = '<span class="badge b-group">Grup</span>';
+      div.innerHTML = `
+        <div class="chat-name">${escHtml(chat.name)}${badge}</div>
+        <div class="chat-last">${escHtml(chat.lastMessage)}</div>
+      `;
+      div.onclick = () => pickChat(chat.id, chat.name, div);
+      list.appendChild(div);
+    });
+  } catch (err) {
+    showAlert('❌ Gagal memuat: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Tampilkan Daftar Chat';
+  }
+}
+
+async function sendReaction() {
+  if (!selectedChatId || !selectedEmoji || isSending) return;
+  const count = parseInt(document.getElementById('count-input').value) || 300;
+  if (count < 1 || count > 1000) {
+    showAlert('❌ Jumlah reaction harus antara 1 - 1000', 'error'); return;
+  }
+  try {
+    const res = await fetch('/api/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId: selectedChatId, emoji: selectedEmoji, count })
+    });
+    const data = await res.json();
+    if (!data.success) showAlert('❌ ' + data.error, 'error');
+  } catch (err) {
+    showAlert('❌ Gagal: ' + err.message, 'error');
+  }
+}
+
+async function stopReaction() {
+  try {
+    await fetch('/api/stop', { method: 'POST' });
+  } catch (err) {
+    showAlert('❌ Gagal stop: ' + err.message, 'error');
+  }
+}
+
+async function logout() {
+  if (!confirm('Yakin mau logout dari WhatsApp?')) return;
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+    showAlert('✅ Berhasil logout!', 'success');
+  } catch (err) {
+    showAlert('❌ ' + err.message, 'error');
+  }
+}
+
+function showProgress(show) {
+  document.getElementById('progress-wrap').style.display = show ? 'block' : 'none';
+  if (show) {
+    document.getElementById('prog-fill').style.width = '0%';
+    document.getElementById('prog-pct').textContent = '0%';
+    document.getElementById('prog-text').textContent = 'Memulai...';
+  }
+}
+
+function showAlert(msg, type) {
+  const box = document.getElementById('alert-box');
+  box.className = 'alert a-' + type;
+  box.textContent = msg;
+  box.style.display = 'block';
+  if (type === 'success' || type === 'info') {
+    setTimeout(() => { box.style.display = 'none'; }, 5000);
+  }
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
